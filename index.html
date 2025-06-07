@@ -1,215 +1,536 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Projektmaßstab & Höhenreduktion ETRS89-UTM</title>
-  <!-- proj4js für UTM→WGS84 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.min.js"></script>
-  <!-- jsPDF & autoTable für PDF-Export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f0f2f5; color:#333; margin:0; padding:2rem; }
-    .container { max-width:900px; margin:auto; background:#fff; padding:1.5rem; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
-    h1 { color:#005288; margin-top:0; }
-    fieldset { border:1px solid #ccc; padding:1rem; margin-bottom:1rem; border-radius:5px; }
-    legend { font-weight:bold; }
-    label { display:block; margin-top:0.5rem; }
-    input, select { width:100%; padding:0.5rem; margin-top:0.2rem; box-sizing:border-box; }
-    .btn-group { display:flex; gap:1rem; margin-top:1rem; }
-    button { flex:1; padding:0.7rem; background:#005288; color:#fff; border:none; cursor:pointer; border-radius:4px; }
-    button:hover { background:#003f6b; }
-    table { width:100%; border-collapse:collapse; margin-top:1rem; }
-    th, td { border:1px solid #ccc; padding:0.5rem; text-align:left; }
-    th { background:#eef3f7; }
-    .error { color:red; }
-    .warning { color:orange; }
-  </style>
+    <meta charset="UTF-8">
+    <title>Projektmaßstab & Höhenreduktion ETRS89-UTM</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width:900px; margin:auto; padding:2rem; background:#f9f9f9; color:#333; }
+        h1 { color:#005288; }
+        fieldset { border:1px solid #ccc; padding:1rem; margin-bottom:1rem; border-radius:5px; }
+        legend { font-weight:bold; }
+        label { display:block; margin-top:0.5rem; }
+        input[type="text"], input[type="number"], input[type="date"], select { width:100%; padding:0.5rem; margin-top:0.2rem; box-sizing:border-box; }
+        input[type="checkbox"] { width: auto; margin-right: 0.5rem; }
+        .btn-group { display:flex; gap:1rem; margin-top:1rem; }
+        button { flex:1; padding:0.7rem; background:#005288; color:#fff; border:none; cursor:pointer; border-radius:4px; }
+        button:hover { background:#003f6b; }
+        table { width:100%; border-collapse:collapse; margin-top:1rem; }
+        th, td { border:1px solid #ccc; padding:0.5rem; text-align:left; }
+        th { background:#eef3f7; }
+        .error { color:red; font-size: 0.9em; margin-top: 0.2em; display: block; }
+        .info { color: gray; font-size: 0.9em; margin-top: 0.2em; display: block;}
+        .footer-content { margin-top: 3rem; font-size: 0.85em; color: #666; text-align: center; }
+        .footer-content a { color: #005288; text-decoration: none; }
+        .footer-content a:hover { text-decoration: underline; }
+        .disclaimer { font-size: 0.9em; color: #888; margin-top: 1rem; }
+    </style>
 </head>
 <body>
-  <div class="container">
     <h1>Projektmaßstab & Höhenreduktion ETRS89-UTM</h1>
     <form id="form">
-      <fieldset>
-        <legend>Projektinformationen</legend>
-        <label>Projekt / Liegenschaft:<input type="text" id="projekt"></label>
-        <label>ID:<input type="text" id="projekt_id"></label>
-        <label>Sachbearbeiter:<input type="text" id="sachbearbeiter"></label>
-        <label>Datum:<input type="date" id="datum"></label>
-      </fieldset>
+        <fieldset>
+            <legend>Projektinformationen</legend>
+            <label>Projekt / Liegenschaft:<input type="text" id="projekt"></label>
+            <label>ID:<input type="text" id="projekt_id"></label>
+            <label>Sachbearbeiter:<input type="text" id="sachbearbeiter"></label>
+            <label>Datum:<input type="date" id="datum"></label>
+        </fieldset>
 
-      <fieldset>
-        <legend>Grunddaten</legend>
-        <label>UTM-Zone:<select id="zone"><option>32</option><option>33</option></select></label>
-        <label>Rechtswert (6 Ziffern):<input type="text" id="x" maxlength="6"></label>
-        <label>Hochwert (7 Ziffern):<input type="text" id="y" maxlength="7"></label>
-        <span id="coordError" class="error"></span>
+        <fieldset>
+            <legend>Grunddaten</legend>
+            <label>UTM-Zone:<select id="zone"><option>32</option><option>33</option></select></label>
+            <label>Rechtswert (6-stellig):<input type="text" id="x" maxlength="6"></label>
+            <label>Hochwert (7-stellig):<input type="text" id="y" maxlength="7"></label>
+            <span id="coordError" class="error"></span>
 
-        <label><input type="checkbox" id="autoHoehe" checked> Höhe automatisch aus DGM</label>
-        <label>Höhe NHN 2016 (m):<input type="number" id="hoehe"></label>
-        <span id="hoeheWarn" class="warning"></span>
+            <label>Höhe NHN 2016 (m):
+                <input type="number" id="hoehe">
+                <input type="checkbox" id="autoHoehe" checked> <small>Automatisch aus DGM berechnen (wenn verfügbar)</small>
+                <span id="hoeheError" class="error"></span>
+                <span id="dgmStatus" class="info"></span>
+            </label>
 
-        <label>Krümmungsradius R<sub>m</sub> (km):<select id="radius_option"><option value="6382">6382</option><option value="dynamic">Berechnen</option></select></label>
+            <label>Krümmungsradius R<sub>m</sub> (m):<br>
+                <select id="radius_option">
+                    <option value="6382000">6382000 (Standard)</option>
+                    <option value="dynamic">Berechnen (Ellipsoidisch)</option>
+                </select> (auswählen oder übernehmen)
+            </label>
 
-        <label><input type="checkbox" id="autoUnd" checked> Undulation automatisch</label>
-        <label>Undulation (m):<input type="number" id="undulation"></label>
-        <span id="undWarn" class="warning"></span>
+            <label>Undulation (m):
+                <input type="number" id="undulation">
+                <input type="checkbox" id="autoUndulation" checked> <small>Automatisch aus Geoidmodell berechnen (wenn verfügbar)</small>
+                <span id="undulationError" class="error"></span>
+                <span id="geoidStatus" class="info"></span>
+            </label>
 
-        <label>Projektausdehnung (m):<input type="number" id="extent"></label>
-        <span id="extentWarn" class="error"></span>
-      </fieldset>
+            <label>Projektausdehnung (m):<input type="number" id="extent"></label>
+            <span id="extentWarn" class="error"></span>
+        </fieldset>
 
-      <div class="btn-group">
-        <button type="button" onclick="berechne()">Berechnen</button>
-        <button type="button" onclick="exportPDF()">PDF-Protokoll</button>
-        <button type="button" onclick="exportCSV()">CSV-Export</button>
-      </div>
+        <div class="btn-group">
+            <button type="button" onclick="berechne()">Berechnen</button>
+            <button type="button" onclick="exportPDF()">PDF-Protokoll</button>
+            <button type="button" onclick="exportCSV()">CSV-Export</button>
+            <button type="button" onclick="resetForm()">Zurücksetzen</button>
+        </div>
     </form>
 
     <div id="ergebnis"></div>
-  </div>
+
+    <div class="footer-content">
+        <p class="disclaimer">Alle Angaben und Berechnungen in diesem Tool dienen ausschließlich Informationszwecken. Trotz größter Sorgfalt bei der Erstellung wird keine Gewähr für die Richtigkeit und Vollständigkeit der Ergebnisse übernommen.</p>
+        <p>© Nils Schneekloth</p>
+        <p>Erstellt mit Unterstützung von Google Gemini 2.5 Flash</p>
+        <p>
+            Für die Berechnungen wurden das DGM 1000 und das Quasi-Geoid vom Bundesamt für Kartographie herangezogen.<br>
+            © <a href="https://www.bkg.bund.de" target="_blank" rel="noopener noreferrer">BKG</a>
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
+        </p>
+    </div>
+
 
 <script>
-  // Konstanten
-  var UTM_SCALE = 0.9996;
-  var CENTRAL_EAST_KM = 500; // in km
-  var DGM_URL = 'dgm.txt';
-  var GEOID_RAW = 'https://drive.google.com/uc?export=download&id=133YvzhAMvY6YBGcmcobptCaxMPpr5C6K';
-  var PROXY1 = 'https://api.allorigins.win/raw?url=';
-  var PROXY2 = 'https://thingproxy.freeboard.io/fetch/';
+    // **************************************************************************************************
+    // Deine Firebase Konfiguration, direkt von der Firebase Console kopiert:
+    const firebaseConfig = {
+      apiKey: "AIzaSyDjOfI8qq_TEvt7zfIoutPHpKBpvUrDr9o",
+      authDomain: "utm-projektmassstab-b396c.firebaseapp.com",
+      databaseURL: "https://utm-projektmassstab-b396c-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "utm-projektmassstab-b396c",
+      storageBucket: "utm-projektmassstab-b396c.firebasestorage.app",
+      messagingSenderId: "385178990435",
+      appId: "1:385178990435:web:abd97b53160f374fef0556"
+    };
+    // **************************************************************************************************
 
-  var dgmGrid = [], geoidGrid = [];
-  var dgmLoaded = false, geoidLoaded = false;
+    // Initialisiere Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-  window.onload = function(){
-    document.getElementById('datum').value = new Date().toISOString().substr(0,10);
-    loadText(DGM_URL, parseDGM, function(){ warn('DGM-Daten konnten nicht geladen werden.','hoeheWarn'); });
-    loadText(PROXY1 + encodeURIComponent(GEOID_RAW), parseGeoid, function(){
-      loadText(PROXY2 + GEOID_RAW, parseGeoid, function(){ warn('Geoid-Daten konnten nicht geladen werden.','undWarn'); });
-    });
-  };
+    let dgmGrid = [];
+    let geoidGrid = [];
+    let dgmLoaded = false;
+    let geoidLoaded = false;
 
-  function loadText(url, success, fail){
-    fetch(url).then(function(r){ if(!r.ok) throw Error(); return r.text(); })
-      .then(success).catch(fail);
-  }
+    // Speichert die zuletzt berechneten Ergebnisse, damit Exportfunktionen darauf zugreifen können
+    let lastResults = {};
 
-  function parseDGM(text){
-    text.split(/\r?\n/).forEach(function(l){
-      var p=l.trim().split(/\s+/).map(Number);
-      if(p.length===3 && !isNaN(p[0])) dgmGrid.push({x:p[0],y:p[1],h:p[2]});
-    }); dgmLoaded=true;
-  }
-  function parseGeoid(text){
-    text.split(/\r?\n/).forEach(function(l){
-      var p=l.trim().split(/\s+/).map(Number);
-      if(p.length===3 && !isNaN(p[0])) geoidGrid.push({lat:p[0],lon:p[1],und:p[2]});
-    }); geoidLoaded=true;
-  }
+    // Konstanten für UTM
+    const UTM_K_0 = 0.9996; // Zentralmeridianfaktor
+    const UTM_FALSE_EASTING = 500000; // Rechtswert am Zentralmeridian
 
-  function warn(msg,id){ document.getElementById(id).innerText = msg; }
+    window.onload = async () => {
+        document.getElementById('datum').value = new Date().toISOString().substring(0,10);
+        await loadDGMData();
+        await loadGeoidData();
+    };
 
-  function berechne(){
-    // Validierung Koordinaten
-    var xVal=document.getElementById('x').value;
-    var yVal=document.getElementById('y').value;
-    var valid=true;
-    if(!/^\d{6}$/.test(xVal)) { warn('Rechtswert muss 6 Ziffern haben.','coordError'); valid=false; }
-    else if(!/^\d{7}$/.test(yVal)) { warn('Hochwert muss 7 Ziffern haben.','coordError'); valid=false; }
-    else warn('','coordError');
-    // Projektausdehnung
-    var ext=+document.getElementById('extent').value;
-    if(ext>5000) warn('Projektausdehnung > 5000 m!','extentWarn'); else warn('','extentWarn');
-    if(!valid) return;
+    function warn(msg, id) { document.getElementById(id).innerText = msg; }
 
-    // Höhe
-    var hoehe=+document.getElementById('hoehe').value;
-    var autoH=document.getElementById('autoHoehe') ? document.getElementById('autoHoehe').checked : false;
-    if(autoH && dgmLoaded){
-      var nearest, md=Infinity;
-      var xN=+xVal, yN=+yVal;
-      dgmGrid.forEach(function(p){ var d=(p.x-xN)**2+(p.y-yN)**2; if(d<md){md=d;nearest=p;} });
-      if(nearest) hoehe=nearest.h;
+    async function loadDGMData() {
+        try {
+            const snapshot = await database.ref('dgm').once('value');
+            const data = snapshot.val();
+            if (data) {
+                dgmGrid = Object.values(data);
+                dgmLoaded = true;
+                warn('DGM Daten geladen.', 'dgmStatus');
+            } else {
+                warn('DGM Daten in Firebase nicht gefunden.', 'dgmStatus');
+            }
+        } catch (error) {
+            console.error("Fehler beim Laden der DGM-Daten von Firebase:", error);
+            warn('Fehler beim Laden der DGM-Daten. Automatische Höhenberechnung nicht verfügbar.', 'dgmStatus');
+        }
     }
-    document.getElementById('hoehe').value = hoehe.toFixed(2);
 
-    // Rm
-    var selRm=document.getElementById('radius_option').value;
-    var Rm_km = (selRm==='dynamic') ? 6371 + (+document.getElementById('zone').value -31) : +selRm;
-    var Rm_m = Rm_km*1000;
-
-    // UTM→WGS84
-    var zone=+document.getElementById('zone').value;
-    var projStr = '+proj=utm +zone=' + zone + ' +datum=WGS84 +units=m +no_defs';
-    var xy = proj4(projStr,'WGS84',[+xVal,+yVal]);
-    var lon = xy[0], lat = xy[1];
-
-    // Undulation
-    var und=+document.getElementById('undulation').value;
-    var autoU=document.getElementById('autoUnd') ? document.getElementById('autoUnd').checked : false;
-    if(autoU && geoidLoaded){
-      var nearestU, mdU=Infinity;
-      geoidGrid.forEach(function(p){ var d=(p.lat-lat)**2+(p.lon-lon)**2; if(d<mdU){mdU=d;nearestU=p;} });
-      if(nearestU) und=nearestU.und;
+    async function loadGeoidData() {
+        try {
+            const snapshot = await database.ref('geoid').once('value');
+            const data = snapshot.val();
+            if (data) {
+                geoidGrid = Object.values(data);
+                geoidLoaded = true;
+                warn('Geoidmodell Daten geladen.', 'geoidStatus');
+            } else {
+                warn('Geoidmodell Daten in Firebase nicht gefunden.', 'geoidStatus');
+            }
+        } catch (error) {
+            console.error("Fehler beim Laden der Geoid-Daten von Firebase:", error);
+            warn('Fehler beim Laden der Geoid-Daten. Automatische Undulationsberechnung nicht verfügbar.', 'geoidStatus');
+        }
     }
-    document.getElementById('undulation').value = und.toFixed(2);
 
-    // Ellipsoidische Höhe
-    var Hell = hoehe + und;
 
-    // Maßstäbe
-    var Em_km = (+xVal/1000) - CENTRAL_EAST_KM;
-    var scale_h = 1 - Hell/Rm_m;
-    var scale_p = UTM_SCALE * (1 + (Em_km*Em_km)/(2*Rm_km*Rm_km));
-    var scale = UTM_SCALE * (scale_h + (Em_km*Em_km)/(2*Rm_km*Rm_km));
-    var ppm = (scale-1)*1e6;
-    var inv = 1/scale;
+    function berechne() {
+        const x_str = document.getElementById('x').value;
+        const y_str = document.getElementById('y').value;
+        let valid = true;
 
-    // Ausgabe
-    var html='<h2>Ergebnisse</h2><table><tr><th>Feld</th><th>Wert</th></tr>';
-    var res=[
-      ['Geogr. Breite (°)', lat.toFixed(8)],
-      ['Geogr. Länge (°)', lon.toFixed(8)],
-      ['Ellipsoidische Höhe (m)', Hell.toFixed(3)],
-      ['Krümmungsradius Rm (m)', Rm_m.toFixed(0)],
-      ['Höhenmaßstab', scale_h.toFixed(6) + ' (' + ((scale_h-1)*100).toFixed(2) + ' cm/100m)'],
-      ['Projektionsmaßstab', scale_p.toFixed(6) + ' (' + ((scale_p-1)*100).toFixed(2) + ' cm/100m)'],
-      ['Projektmaßstab', scale.toFixed(6) + ' (' + ((scale-1)*100).toFixed(2) + ' cm/100m)'],
-      ['Streckenverzerrung (ppm)', ppm.toFixed(1)],
-      ['Maßstabanpassung (1/m)', inv.toFixed(8) + ' (' + ((inv-1)*100).toFixed(2) + ' cm/100m)']
-    ];
-    res.forEach(function(r){ html += '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'; });
-    html += '</table>';
-    document.getElementById('ergebnis').innerHTML = html;
-  }
+        // Validierung Rechtswert und Hochwert
+        if (!/^\d{6}$/.test(x_str) || !/^\d{7}$/.test(y_str)) {
+            warn('Rechtswert 6 und Hochwert 7 Ziffern erforderlich.', 'coordError');
+            valid = false;
+        } else {
+            warn('', 'coordError');
+        }
 
-  function exportPDF(){
-    var { jsPDF } = window.jspdf;
-    var pdf = new jsPDF({unit:'mm',format:'a4'});
-    // Header
-    pdf.setFillColor(0,82,136);
-    pdf.rect(0,0,210,20,'F');
-    pdf.setFontSize(14);
-    pdf.setTextColor(255);
-    pdf.text('Projektmaßstab & Höhenreduktion ETRS89-UTM',10,14);
-    // Tabelle
-    var rows=[];
-    document.querySelectorAll('#ergebnis table tr').forEach(function(tr,i){ if(i>0){
-      var cols=tr.querySelectorAll('td'); rows.push([cols[0].innerText,cols[1].innerText]); }});
-    pdf.autoTable({ startY:25, head:[['Feld','Wert']], body:rows, margin:{left:10,right:10}, headStyles:{fillColor:[230,230,255]}, alternateRowStyles:{fillColor:[245,245,245]}, styles:{fontSize:10} });
-    pdf.save('Protokoll.pdf');
-  }
+        const x = +x_str;
+        const y = +y_str;
 
-  function exportCSV(){
-    var x=document.getElementById('x').value;
-    var y=document.getElementById('y').value;
-    var scale = document.querySelector('#ergebnis table tr:nth-child(7) td:nth-child(2)').innerText;
-    var inv = document.querySelector('#ergebnis table tr:last-child td:nth-child(2)').innerText;
-    var csv = 'Rechtswert,Hochwert,Projektmaßstab,Maßstabanpassung\n'
-            + x + ',' + y + ',"' + scale + '","' + inv + '"';
-    var blob = new Blob([csv],{type:'text/csv'});
-    var a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='export.csv'; a.click();
-  }
+        let hoehe = +document.getElementById('hoehe').value;
+        if (isNaN(hoehe)) {
+            warn('Höhe muss eine Zahl sein.', 'hoeheError');
+            valid = false;
+        } else {
+            warn('', 'hoeheError');
+        }
+
+        const extent = +document.getElementById('extent').value;
+        if (isNaN(extent)) {
+            warn('Projektausdehnung muss eine Zahl sein.', 'extentWarn');
+            valid = false;
+        } else if (extent > 5000) {
+            warn('Projekt > 5000m! Dies kann zu höheren Verzerrungen führen.', 'extentWarn');
+        } else {
+            warn('', 'extentWarn');
+        }
+
+        if (!valid) return;
+
+        // Automatische Höhenberechnung
+        if (document.getElementById('autoHoehe').checked && dgmLoaded) {
+            let nearestPoint = null;
+            let minDistSq = Infinity;
+
+            for (const p of dgmGrid) {
+                const dx = p.x - x;
+                const dy = p.y - y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < minDistSq) {
+                    minDistSq = distSq;
+                    nearestPoint = p;
+                }
+            }
+            if (nearestPoint) {
+                hoehe = nearestPoint.h;
+                document.getElementById('hoehe').value = hoehe.toFixed(2);
+            } else {
+                warn('Kein passender DGM-Punkt gefunden. Manuelle Höhe wird verwendet.', 'dgmStatus');
+            }
+        } else if (document.getElementById('autoHoehe').checked && !dgmLoaded) {
+            warn('DGM Daten nicht geladen. Automatische Höhenberechnung nicht möglich.', 'dgmStatus');
+        }
+
+
+        const zone = +document.getElementById('zone').value;
+
+        // UTM zu WGS84 Transformation für Geoid-Lookups
+        proj4.defs(`EPSG:258${zone}`, `+proj=utm +zone=${zone} +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs`);
+        const [lon, lat] = proj4(`EPSG:258${zone}`, 'WGS84', [x, y]);
+
+        let undulation = +document.getElementById('undulation').value;
+        if (isNaN(undulation)) {
+            warn('Undulation muss eine Zahl sein.', 'undulationError');
+            valid = false;
+        } else {
+            warn('', 'undulationError');
+        }
+        if (!valid) return;
+
+        // Automatische Undulationsberechnung
+        if (document.getElementById('autoUndulation').checked && geoidLoaded) {
+            let nearestUndulationPoint = null;
+            let minDistSqUndulation = Infinity;
+
+            for (const p of geoidGrid) {
+                const dLat = p.lat - lat;
+                const dLon = p.lon - lon;
+                const distSq = dLat * dLat + dLon * dLon;
+                if (distSq < minDistSqUndulation) {
+                    minDistSqUndulation = distSq;
+                    nearestUndulationPoint = p;
+                }
+            }
+            if (nearestUndulationPoint && nearestUndulationPoint.und < 1e4) { // Prüfen auf plausible Werte
+                undulation = nearestUndulationPoint.und;
+                document.getElementById('undulation').value = undulation.toFixed(2);
+            } else {
+                warn('Keine passende Undulation im Geoidmodell gefunden. Manuelle Undulation wird verwendet.', 'geoidStatus');
+            }
+        } else if (document.getElementById('autoUndulation').checked && !geoidLoaded) {
+            warn('Geoidmodell Daten nicht geladen. Automatische Undulationsberechnung nicht möglich.', 'geoidStatus');
+        }
+
+        // Berechnung des Krümmungsradius Rm
+        let Rm;
+        if (document.getElementById('radius_option').value === 'dynamic') {
+            Rm = 6378137 / Math.sqrt(1 - (0.00669437999014 * Math.sin(lat * Math.PI / 180))**2);
+        } else {
+            Rm = +document.getElementById('radius_option').value;
+        }
+
+        const Hell = hoehe + undulation;
+        const m_h = 1 - Hell / Rm;
+
+        const deltaX = (x - UTM_FALSE_EASTING);
+        const m_proj = UTM_K_0 * (1 + (deltaX * deltaX) / (2 * Rm * Rm));
+
+        const m = m_proj * m_h;
+        const ppm = (m - 1) * 1e6; // Parts per million
+
+        // Calculate distortion for specific lengths in cm
+        const calculateDistortionCm = (lengthMeters, ppmValue) => {
+            return (ppmValue * lengthMeters / 1_000_000 * 100); // Convert to cm, no fixed yet for precision
+        };
+
+        const distortion10mCm = calculateDistortionCm(10, ppm);
+        const distortion100mCm = calculateDistortionCm(100, ppm);
+        const distortion1000mCm = calculateDistortionCm(1000, ppm);
+
+
+        const inv = 1 / m;
+
+        // Store results in lastResults object for export functions
+        lastResults = {
+            projekt: document.getElementById('projekt').value,
+            projekt_id: document.getElementById('projekt_id').value,
+            sachbearbeiter: document.getElementById('sachbearbeiter').value,
+            datum: document.getElementById('datum').value,
+            x: x, // Rechtswert
+            y: y, // Hochwert
+            lat: lat,
+            lon: lon,
+            Hell: Hell,
+            Rm: Rm,
+            m_h: m_h,
+            m_proj: m_proj,
+            m: m, // Projektmaßstab
+            ppm: ppm, // Streckenverzerrung in ppm
+            inv: inv, // Maßstabsanpassung
+            hoehe: hoehe, // Höhe NHN
+            undulation: undulation, // Undulation
+            distortion10mCm: distortion10mCm,
+            distortion100mCm: distortion100mCm,
+            distortion1000mCm: distortion1000mCm
+        };
+
+        let html = '<h2>Ergebnisse</h2><table><tr><th>Werteart</th><th>Wert</th></tr>' +
+            `<tr><td>Rechtswert</td><td>${x.toFixed(0)} m</td></tr>` +
+            `<tr><td>Hochwert</td><td>${y.toFixed(0)} m</td></tr>` +
+            `<tr><td>Höhe NHN 2016</td><td>${hoehe.toFixed(2)} m</td></tr>` +
+            `<tr><td>Geogr. Breite</td><td>${lat.toFixed(8)}°</td></tr>` +
+            `<tr><td>Geogr. Länge</td><td>${lon.toFixed(8)}°</td></tr>` +
+            `<tr><td>Ellipsoidische Höhe</td><td>${Hell.toFixed(3)} m</td></tr>` +
+            `<tr><td>Rm (mittlerer Erdradius)</td><td>${Rm.toFixed(0)} m</td></tr>` + // Corrected: Removed "(auswählen oder übernehmen)"
+            `<tr><td>Höhenmaßstab</td><td>${m_h.toFixed(6)} (${((m_h - 1) * 100).toFixed(2)} cm/100m)</td></tr>` +
+            `<tr><td>Projektionsmaßstab</td><td>${m_proj.toFixed(6)} (${((m_proj - 1) * 100).toFixed(2)} cm/100m)</td></tr>` +
+            `<tr><td>Projektmaßstab</td><td>${m.toFixed(6)} (${((m - 1) * 100).toFixed(2)} cm/100m)</td></tr>` +
+            `<tr><td>Streckenverzerrung</td><td>${ppm.toFixed(1)} ppm</td></tr>` +
+            `<tr><td>Streckenverzerrung auf 10m</td><td>${distortion10mCm.toFixed(2)} cm</td></tr>` +
+            `<tr><td>Streckenverzerrung auf 100m</td><td>${distortion100mCm.toFixed(2)} cm</td></tr>` +
+            `<tr><td>Streckenverzerrung auf 1000m</td><td>${distortion1000mCm.toFixed(2)} cm</td></tr>` +
+            `<tr><td>Maßstabanpassung</td><td>${inv.toFixed(8)} (${((inv - 1) * 100).toFixed(2)} cm/100m)</td></tr>`;
+        html += '</table>';
+        document.getElementById('ergebnis').innerHTML = html;
+    }
+
+    function exportPDF() {
+        if (Object.keys(lastResults).length === 0) {
+            alert("Bitte zuerst auf 'Berechnen' klicken, um Ergebnisse zu generieren.");
+            return;
+        }
+
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        let yOffset = 10;
+        const lineSpacing = 7;
+        const margin = 15;
+
+        // Titel
+        doc.setFontSize(16);
+        doc.text("Projektmaßstab & Höhenreduktion Protokoll", margin, yOffset);
+        yOffset += 15;
+
+        // Projektinformationen
+        doc.setFontSize(12);
+        doc.text("Projektinformationen:", margin, yOffset);
+        yOffset += lineSpacing;
+
+        const projectInfo = [
+            ["Projekt / Liegenschaft:", lastResults.projekt || "N/A"],
+            ["ID:", lastResults.projekt_id || "N/A"],
+            ["Sachbearbeiter:", lastResults.sachbearbeiter || "N/A"],
+            ["Datum:", lastResults.datum || "N/A"]
+        ];
+
+        doc.autoTable({
+            startY: yOffset,
+            head: [], // No header for project info table
+            body: projectInfo,
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 1, overflow: 'linebreak' },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+            margin: { left: margin, right: margin }
+        });
+        yOffset = doc.autoTable.previous.finalY + 10; // Update yOffset after autoTable
+
+        // Ergebnisse Tabelle
+        doc.setFontSize(12);
+        doc.text("Berechnungsergebnisse:", margin, yOffset);
+        yOffset += lineSpacing;
+
+        const resultsTableData = [
+            ["Rechtswert", `${lastResults.x.toFixed(0)} m`],
+            ["Hochwert", `${lastResults.y.toFixed(0)} m`],
+            ["Höhe NHN 2016", `${lastResults.hoehe.toFixed(2)} m`],
+            ["Geogr. Breite", `${lastResults.lat.toFixed(8)}°`],
+            ["Geogr. Länge", `${lastResults.lon.toFixed(8)}°`],
+            ["Ellipsoidische Höhe", `${lastResults.Hell.toFixed(3)} m`],
+            ["Rm (mittlerer Erdradius)", `${lastResults.Rm.toFixed(0)} m`], // Corrected: Removed "(auswählen oder übernehmen)"
+            ["Höhenmaßstab", `${lastResults.m_h.toFixed(6)} (${((lastResults.m_h - 1) * 100).toFixed(2)} cm/100m)`],
+            ["Projektionsmaßstab", `${lastResults.m_proj.toFixed(6)} (${((lastResults.m_proj - 1) * 100).toFixed(2)} cm/100m)`],
+            ["Projektmaßstab", `${lastResults.m.toFixed(6)} (${((lastResults.m - 1) * 100).toFixed(2)} cm/100m)`],
+            ["Streckenverzerrung", `${lastResults.ppm.toFixed(1)} ppm`],
+            ["Streckenverzerrung auf 10m", `${lastResults.distortion10mCm.toFixed(2)} cm`],
+            ["Streckenverzerrung auf 100m", `${lastResults.distortion100mCm.toFixed(2)} cm`],
+            ["Streckenverzerrung auf 1000m", `${lastResults.distortion1000mCm.toFixed(2)} cm`],
+            ["Maßstabanpassung", `${lastResults.inv.toFixed(8)} (${((lastResults.inv - 1) * 100).toFixed(2)} cm/100m) `]
+        ];
+
+        doc.autoTable({
+            startY: yOffset,
+            head: [['Werteart', 'Wert']], // Changed header here
+            body: resultsTableData,
+            theme: 'striped',
+            styles: { fontSize: 10, cellPadding: 2 },
+            headStyles: { fillColor: [0, 82, 136], textColor: [255, 255, 255] },
+            margin: { left: margin, right: margin }
+        });
+        yOffset = doc.autoTable.previous.finalY + 20;
+
+        // Haftungsausschluss
+        const liabilityText = "Alle Angaben und Berechnungen in diesem Protokoll dienen ausschließlich Informationszwecken. Trotz größter Sorgfalt bei der Erstellung wird keine Gewähr für die Richtigkeit und Vollständigkeit der Ergebnisse übernommen.";
+        doc.setFontSize(9);
+        doc.setTextColor(50);
+        const splitLiabilityText = doc.splitTextToSize(liabilityText, doc.internal.pageSize.width - 2 * margin);
+        doc.text(splitLiabilityText, margin, yOffset);
+        yOffset += splitLiabilityText.length * lineSpacing + 5; // Adjust yOffset based on split text height
+        doc.setTextColor(100); // Reset color for footer text
+
+        // Fußzeile
+        const pageHeight = doc.internal.pageSize.height;
+        doc.setFontSize(9);
+
+        doc.text("© Nils Schneekloth", margin, pageHeight - 40);
+        doc.text("Erstellt mit Unterstützung von Google Gemini 2.5 Flash", margin, pageHeight - 35);
+
+        // BKG Lizenzinformationen
+        doc.text("Für die Berechnungen wurden das DGM 1000 und das Quasi-Geoid vom Bundesamt für Kartographie herangezogen.", margin, pageHeight - 20);
+        
+        const bkgText = "© BKG";
+        const bkgUrl = "https://www.bkg.bund.de";
+        const ccbyText = "CC BY 4.0";
+        const ccbyUrl = "https://creativecommons.org/licenses/by/4.0/";
+
+        let currentX = margin;
+        let currentY = pageHeight - 15;
+
+        // BKG Text and Link
+        doc.text(bkgText, currentX, currentY);
+        currentX += doc.getTextWidth(bkgText); 
+        doc.text(" ", currentX, currentY); // Space
+        currentX += doc.getTextWidth(" ");
+        doc.textWithLink(bkgUrl, currentX, currentY, { url: bkgUrl });
+        currentX += doc.getTextWidth(bkgUrl);
+
+        // CC BY 4.0 Text and Link
+        doc.text(" ", currentX, currentY); // Space
+        currentX += doc.getTextWidth(" ");
+        doc.text(ccbyText, currentX, currentY);
+        currentX += doc.getTextWidth(ccbyText);
+        doc.text(" ", currentX, currentY); // Space
+        currentX += doc.getTextWidth(" ");
+        doc.textWithLink(ccbyUrl, currentX, currentY, { url: ccbyUrl });
+        
+        doc.save("Projektmassstab_Protokoll.pdf");
+        alert("PDF-Protokoll erstellt.");
+    }
+
+    function exportCSV() {
+        if (Object.keys(lastResults).length === 0) {
+            alert("Bitte zuerst auf 'Berechnen' klicken, um Ergebnisse zu generieren.");
+            return;
+        }
+
+        const headers = [
+            "Rechtswert",
+            "Hochwert",
+            "Hoehe (NHN 2016)",
+            "Projektmassstab",
+            "Streckenverzerrung (ppm)",
+            "Massstabsanpassung",
+            "Streckenverzerrung_10m_cm",
+            "Streckenverzerrung_100m_cm",
+            "Streckenverzerrung_1000m_cm"
+        ];
+
+        // Format numbers to use comma as decimal separator for German CSV compatibility
+        const formatNumberForCSV = (num, fixed) => {
+            // Ensure num is a number. If it's a string, try converting it.
+            if (typeof num === 'string') {
+                num = parseFloat(num);
+            }
+            if (typeof num !== 'number' || isNaN(num)) {
+                return ''; // Return empty string for invalid numbers
+            }
+            return num.toFixed(fixed).replace('.', ',');
+        };
+
+        const data = [
+            formatNumberForCSV(lastResults.x, 0), // Rechtswert
+            formatNumberForCSV(lastResults.y, 0), // Hochwert
+            formatNumberForCSV(lastResults.hoehe, 2), // Höhe NHN 2016
+            formatNumberForCSV(lastResults.m, 6), // Projektmaßstab
+            formatNumberForCSV(lastResults.ppm, 1), // Streckenverzerrung in ppm
+            formatNumberForCSV(lastResults.inv, 8),  // Maßstabsanpassung
+            formatNumberForCSV(lastResults.distortion10mCm, 2),
+            formatNumberForCSV(lastResults.distortion100mCm, 2),
+            formatNumberForCSV(lastResults.distortion1000mCm, 2)
+        ];
+
+        const csvContent = headers.join(';') + '\n' + data.join(';'); // Use semicolon as separator
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Projektmassstab_Ergebnisse.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert("CSV-Export erstellt.");
+    }
+
+    function resetForm() {
+        document.getElementById('form').reset();
+        document.getElementById('ergebnis').innerHTML = '';
+        warn('', 'coordError');
+        warn('', 'hoeheError');
+        warn('', 'extentWarn');
+        warn('', 'undulationError');
+        document.getElementById('datum').value = new Date().toISOString().substring(0,10);
+        warn('DGM Daten geladen.', 'dgmStatus'); // Setze Status zurück
+        warn('Geoidmodell Daten geladen.', 'geoidStatus'); // Setze Status zurück
+        lastResults = {}; // Reset stored results
+    }
 </script>
 </body>
 </html>
