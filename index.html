@@ -2,125 +2,191 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Projektmaßstab & Höhenreduktion</title>
-  <!-- proj4js für UTM->WGS84 -->
+  <title>Projektmaßstab & Höhenreduktion ETRS89-UTM</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; max-width:800px; margin:auto; padding:2rem; background:#f9f9f9; color:#333; }
-    h1,h2 { color:#003f6b; border-bottom:2px solid #ccc; padding-bottom:.3rem; }
-    label { display:block; margin-top:1rem; font-weight:bold; }
-    input, select, button { width:100%; padding:.5rem; margin-top:.2rem; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; }
-    .btn-group { display:flex; gap:1rem; margin-top:1.5rem; }
-    .btn-group button { flex:1; background:#005288; color:#fff; border:none; cursor:pointer; transition:background .2s; }
-    .btn-group button:hover { background:#003f6b; }
-    .output { background:#eef3f7; border:1px solid #cdd6e0; margin-top:2rem; padding:1.5rem; border-radius:8px; }
-    code { background:#e0e7ef; padding:2px 6px; border-radius:3px; font-family:monospace; }
+    body { font-family: Arial, sans-serif; max-width:900px; margin:auto; padding:2rem; background:#f9f9f9; color:#333; }
+    h1 { color:#005288; }
+    fieldset { border:1px solid #ccc; padding:1rem; margin-bottom:1rem; border-radius:5px; }
+    legend { font-weight:bold; }
+    label { display:block; margin-top:0.5rem; }
+    input, select { width:100%; padding:0.5rem; margin-top:0.2rem; box-sizing:border-box; }
+    .btn-group { display:flex; gap:1rem; margin-top:1rem; }
+    button { flex:1; padding:0.7rem; background:#005288; color:#fff; border:none; cursor:pointer; border-radius:4px; }
+    button:hover { background:#003f6b; }
+    table { width:100%; border-collapse:collapse; margin-top:1rem; }
+    th, td { border:1px solid #ccc; padding:0.5rem; text-align:left; }
+    th { background:#eef3f7; }
   </style>
 </head>
 <body>
-  <h1>Projektmaßstab & Höhenreduktion</h1>
+  <h1>Projektmaßstab & Höhenreduktion ETRS89-UTM</h1>
+  <form id="form">
+    <fieldset>
+      <legend>Projektinformationen</legend>
+      <label>1. Projekt / Liegenschaft:<input type="text" id="projekt"></label>
+      <label>2. ID:<input type="text" id="projekt_id"></label>
+      <label>3. Sachbearbeiter:<input type="text" id="sachbearbeiter"></label>
+      <label>4. Datum:<input type="date" id="datum"></label>
+    </fieldset>
 
-  <h2>Eingaben</h2>
-  <label>x (Rechtswert, m):<input id="x" type="number"></label>
-  <label>y (Hochwert, m):<input id="y" type="number"></label>
-  <label><input id="autoHoehe" type="checkbox" checked> Höhe automatisch aus DGM</label>
-  <label>Höhe NHN (m):<input id="hoehe" type="number"></label>
-  <label>Zone:<select id="zone"><option>32</option><option>33</option></select></label>
-  <label>Rm (km):<select id="radius_option"><option value="6382">Statisch 6382</option><option value="dynamic">Dynamisch</option></select></label>
+    <fieldset>
+      <legend>Grunddaten</legend>
+      <label>5. UTM-Zone:<select id="zone"><option>32</option><option>33</option></select></label>
+      <label>6. Rechtswert (6-stellig):<input type="text" id="x" maxlength="6"></label>
+      <label>7. Hochwert (6-stellig):<input type="text" id="y" maxlength="6"></label>
+      <span id="coordError" style="color:red;"></span>
 
-  <div class="btn-group">
-    <button onclick="berechneMassstab()">Berechnen</button>
-  </div>
+      <label>8. Höhe NHN 2016 (m):<input type="number" id="hoehe"><br>
+        <small id="hoeheHinweis" style="color:#666;">Wird automatisch aus DGM (1000 m Raster) berechnet, kann ungenau sein.</small>
+      </label>
 
-  <div class="output" id="ergebnis">Lade Daten…</div>
+      <label>8.1 Krümmungsradius R<sub>m</sub> (km):<select id="radius_option"><option value="6382">6382</option><option value="dynamic">Berechnen</option></select></label>
 
-  <script>
-    // DGM aus GitHub-Pages (dgm.txt im selben Verzeichnis)
-    const dgmUrl = 'dgm.txt';
-    // Geoid per Google Drive + CORS-Proxy
-    const geoidUrl = 'https://api.allorigins.win/raw?url=' +
-      encodeURIComponent('https://drive.google.com/uc?export=download&id=133YvzhAMvY6YBGcmcobptCaxMPpr5C6K');
+      <label>9. Undulation (m):<input type="number" id="undulation"><br>
+        <small id="undHint" style="color:#666;">Wird automatisch aus Geoid-Modell berechnet.</small>
+      </label>
 
-    let dgmGrid = [], geoidGrid = [];
+      <label>10. Projektausdehnung (m):<input type="number" id="extent"></label>
+      <small id="extentWarn" style="color:red;"></small>
+    </fieldset>
 
-    window.onload = async () => {
-      // DGM laden
-      try {
-        const dgmText = await (await fetch(dgmUrl)).text();
-        dgmText.trim().split(/\r?\n/).forEach(line => {
-          const [x,y,h] = line.trim().split(/\s+/).map(Number);
-          if (!isNaN(x) && !isNaN(y) && !isNaN(h)) dgmGrid.push({x,y,h});
-        });
-        console.log('DGM geladen:', dgmGrid.length);
-      } catch (e) {
-        console.warn('Fehler Laden dgm.txt:', e);
-      }
-      // Geoid laden
-      try {
-        const geoidText = await (await fetch(geoidUrl)).text();
-        geoidText.trim().split(/\r?\n/).forEach(line => {
-          const [lat,lon,und] = line.trim().split(/\s+/).map(Number);
-          if (!isNaN(lat) && !isNaN(lon) && !isNaN(und)) geoidGrid.push({lat,lon,und});
-        });
-        console.log('Geoid geladen:', geoidGrid.length);
-      } catch (e) {
-        console.warn('Fehler Laden Geoid:', e);
-      }
-      document.getElementById('ergebnis').innerText = 'Daten geladen. Bitte Eingaben.';
-    };
+    <div class="btn-group">
+      <button type="button" onclick="berechne()">Berechnen</button>
+      <button type="button" onclick="exportPDF()">PDF-Protokoll</button>
+      <button type="button" onclick="exportCSV()">CSV-Export</button>
+    </div>
+  </form>
 
-    function berechneMassstab() {
-      const x = parseFloat(document.getElementById('x').value);
-      const y = parseFloat(document.getElementById('y').value);
-      const auto = document.getElementById('autoHoehe').checked;
-      let hoehe = parseFloat(document.getElementById('hoehe').value);
-      const zone = parseInt(document.getElementById('zone').value);
-      if (isNaN(x) || isNaN(y) || (!auto && isNaN(hoehe))) {
-        return alert('Bitte x, y und Höhe eingeben.');
-      }
-      // Automatische DGM-Höhe
-      if (auto && dgmGrid.length) {
-        let nearest, md = Infinity;
-        dgmGrid.forEach(p => {
-          const d = (p.x - x) ** 2 + (p.y - y) ** 2;
-          if (d < md) { md = d; nearest = p; }
-        });
-        if (nearest) hoehe = nearest.h;
-      }
-      document.getElementById('hoehe').value = hoehe.toFixed(2);
+  <div id="ergebnis"></div>
 
-      // UTM -> WGS84 für Geoid
-      const projStr = `+proj=utm +zone=${zone} +datum=WGS84 +units=m +no_defs`;
-      const [lon, lat] = proj4(projStr, 'WGS84', [x, y]);
+<script>
+  // Datenquellen
+  const dgmUrl = 'dgm.txt';
+  const geoidUrl = 'https://api.allorigins.win/raw?url=' +
+    encodeURIComponent('https://drive.google.com/uc?export=download&id=133YvzhAMvY6YBGcmcobptCaxMPpr5C6K');
+  let dgmGrid = [], geoidGrid = [];
 
-      // Geoid-Undulation
-      let und = 47;
-      if (geoidGrid.length) {
-        let nearest, md = Infinity;
-        geoidGrid.forEach(p => {
-          const d = (p.lat - lat) ** 2 + (p.lon - lon) ** 2;
-          if (d < md) { md = d; nearest = p; }
-        });
-        if (nearest && nearest.und < 1e4) und = nearest.und;
-      }
+  window.onload = async () => {
+    // aktuelles Datum setzen
+    document.getElementById('datum').value = new Date().toISOString().substr(0,10);
+    // DGM laden
+    try {
+      const text = await fetch(dgmUrl).then(r=>r.text());
+      text.trim().split(/\r?\n/).forEach(line=>{
+        const [x,y,h]=line.split(/\s+/).map(Number);
+        if(!isNaN(x)&&!isNaN(y)&&!isNaN(h)) dgmGrid.push({x,y,h});
+      });
+    } catch(e){ console.warn(e); }
+    // Geoid laden
+    try{
+      const text = await fetch(geoidUrl).then(r=>r.text());
+      text.trim().split(/\r?\n/).forEach(line=>{
+        const [lat,lon,und]=line.split(/\s+/).map(Number);
+        if(!isNaN(lat)&&!isNaN(lon)&&!isNaN(und)) geoidGrid.push({lat,lon,und});
+      });
+    } catch(e){ console.warn(e); }
+  };
 
-      const Rm = document.getElementById('radius_option').value === 'dynamic'
-        ? 6371000 + (zone - 31) * 1000
-        : 6382000;
-      const H_ell = hoehe + und;
-      const m = 0.9996 * (1 - (H_ell / Rm) + ((x / 1000 - 500) ** 2) / (2 * 6382 ** 2));
-      const ppm = (m - 1) * 1e6;
-      const inv = 1 / m;
+  function warn(msg,el){ document.getElementById(el).innerText=msg; }
 
-      document.getElementById('ergebnis').innerHTML = `
-        <strong>H_NHN:</strong> ${hoehe.toFixed(2)} m<br>
-        <strong>Undulation:</strong> ${und.toFixed(2)} m<br>
-        <strong>H_ell:</strong> ${H_ell.toFixed(3)} m<br>
-        <strong>m:</strong> <code>${m.toFixed(10)}</code><br>
-        <strong>ppm:</strong> <code>${ppm.toFixed(2)}</code><br>
-        <strong>1/m:</strong> <code>${inv.toFixed(10)}</code>
-      `;
+  function berechne(){
+    // Validierung
+    const xField = document.getElementById('x'), yField=document.getElementById('y');
+    const x=xField.value, y=yField.value;
+    let valid=true;
+    if(!/^\d{6}$/.test(x)||!/^\d{6}$/.test(y)){
+      warn('Rechts- und Hochwert müssen 6 Ziffern sein.','coordError'); valid=false;
+    } else warn('','coordError');
+    const extent=+document.getElementById('extent').value;
+    if(extent>5000) warn('Projektausdehnung > 5000 m!','extentWarn'); else warn('','extentWarn');
+    if(!valid) return;
+    // Eingaben
+    const auto=document.getElementById('autoHoehe').checked;
+    let hoehe=+document.getElementById('hoehe').value;
+
+    // DGM
+    if(auto && dgmGrid.length){
+      let nearest,md=Infinity;
+      dgmGrid.forEach(p=>{ const d=(p.x-x)**2+(p.y-y)**2; if(d<md){md=d;nearest=p;} });
+      if(nearest) hoehe=nearest.h;
     }
-  </script>
+    document.getElementById('hoehe').value=hoehe.toFixed(2);
+
+    // proj4Utm->WGS
+    const zone=+document.getElementById('zone').value;
+    const projStr=`+proj=utm +zone=${zone} +datum=WGS84 +units=m +no_defs`;
+    const [lon,lat]=proj4(projStr,'WGS84',[+x,+y]);
+
+    // Undulation
+    let und=47;
+    if(geoidGrid.length){ let nearest,md=Infinity;
+      geoidGrid.forEach(p=>{ const d=(p.lat-lat)**2+(p.lon-lon)**2; if(d<md){md=d;nearest=p;} });
+      if(nearest&&nearest.und<1e4) und=nearest.und;
+    }
+    document.getElementById('undulation').value=und.toFixed(2);
+
+    // Krümmungsradius
+    let Rm = +document.getElementById('radius_option').value *1000;
+    if(document.getElementById('radius_option').value==='dynamic') Rm=6371000+(zone-31)*1000;
+
+    // H_ell
+    const Hell=hoehe+und;
+    // Maßstäbe
+    const m_h = 1 - Hell/Rm;
+    const m_p = 1 + ((x/1000-500)**2)/(2*6382**2);
+    const m_proj=0.9996*m_p;
+    const m = 0.9996*(m_h + ((x/1000-500)**2)/(2*6382**2));
+    const ppm=(m-1)*1e6;
+    const inv=1/m;
+
+    // DIN Toleranzen (Beispielwerte)
+    const din18202=[['<=1m','0.0'],['<=3m','-0.1'],['<=6m','-0.2'],['<=15m','-0.6'],['<=30m','-1.2'],['>30m','3.0']];
+    const din18710=[['<=1m','0.4'],['<=3m','0.5'],['<=6m','0.7'],['<=15m','0.9'],['<=30m','1.1'],['>30m','1.3']];
+
+    // Ausgabe-Tabelle
+    let html=`<h2>Ergebnisse</h2><table><tr><th>Feld</th><th>Wert</th></tr>`+
+      `<tr><td>Geogr. Breite (°)</td><td>${lat.toFixed(8)}</td></tr>`+
+      `<tr><td>Geogr. Länge (°)</td><td>${lon.toFixed(8)}</td></tr>`+
+      `<tr><td>Ellipsoidische Höhe (m)</td><td>${Hell.toFixed(3)}</td></tr>`+
+      `<tr><td>Rm (m)</td><td>${Rm.toFixed(0)}</td></tr>`+
+      `<tr><td>Höhenmaßstab</td><td>${(1-Hell/Rm).toFixed(6)} &ensp;${((1-Hell/Rm)-1)*100} cm/100m</td></tr>`+
+      `<tr><td>Projektionsmaßstab</td><td>${m_proj.toFixed(6)} &ensp;${(m_proj-1)*100} cm/100m</td></tr>`+
+      `<tr><td>Projektmaßstab</td><td>${m.toFixed(6)} &ensp;${(m-1)*100} cm/100m</td></tr>`+
+      `<tr><td>Streckenverzerrung (ppm)</td><td>${ppm.toFixed(1)}</td></tr>`+
+      `<tr><td>Maßstabanpassung (1/m)</td><td>${inv.toFixed(8)} &ensp;${(inv-1)*100} cm/100m</td></tr>`;
+    html+=`<tr><td rowspan="${din18202.length+1}">DIN 18202</td><td><b>Grenzabweichungen</b></td></tr>`;
+    din18202.forEach(r=>html+=`<tr><td>${r[0]}: ${r[1]} cm</td></tr>`);
+    html+=`<tr><td rowspan="${din18710.length+1}">DIN 18710-1</td></tr>`;
+    din18710.forEach(r=>html+=`<tr><td>${r[0]}: ${r[1]} cm</td></tr>`);
+    html+=`</table>`;
+    document.getElementById('ergebnis').innerHTML=html;
+  }
+
+  function exportPDF(){
+    const { jsPDF } = window.jspdf;
+    const pdf=new jsPDF({unit:'mm',format:'a4'});
+    pdf.setFontSize(14); pdf.text('Protokoll: Projektmaßstab & Höhenreduktion',20,20);
+    const rows=[];
+    document.querySelectorAll('#ergebnis table tr').forEach((tr,i)=>{
+      const cols=tr.querySelectorAll('td,th');
+      rows.push([cols[0].innerText, cols[1]?.innerText||'']);
+    });
+    pdf.autoTable({startY:30,head:[['Feld','Wert']],body:rows});
+    pdf.save('Protokoll.pdf');
+  }
+  function exportCSV(){
+    const lines=['Rechtswert, Hochwert, Projektmaßstab, Maßstabanpassung'];
+    const x=document.getElementById('x').value;
+    const y=document.getElementById('y').value;
+    const mRow=document.querySelector('#ergebnis code').innerText;
+    const inv=mRow; // simplify
+    lines.push([x,y,mRow,inv].join(','));
+    const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='daten.csv'; a.click();
+  }
+</script>
 </body>
 </html>
