@@ -89,8 +89,11 @@
         <p>Erstellt mit Unterstützung von Google Gemini 2.5 Flash</p>
         <p>
             Für die Berechnungen wurden das DGM 1000 und das Quasi-Geoid vom Bundesamt für Kartographie herangezogen.<br>
-            © <a href="https://www.bkg.bund.de" target="_blank" rel="noopener noreferrer">BKG</a>
-            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>
+            © <a href="https://www.bkg.bund.de" target="_blank" rel="noopener noreferrer">BKG</a> (2025)
+            <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener noreferrer">dl-de/by-2-0</a> (Daten verändert)
+            <br>
+            © <a href="https://www.bkg.bund.de" target="_blank" rel="noopener noreferrer">BKG</a> (2025)
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>, Datenquellen: <a href="https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/Datenquellen_Quasigeoid.pdf" target="_blank" rel="noopener noreferrer">https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/Datenquellen_Quasigeoid.pdf</a>
         </p>
     </div>
 
@@ -328,7 +331,7 @@
             `<tr><td>Geogr. Breite</td><td>${lat.toFixed(8)}°</td></tr>` +
             `<tr><td>Geogr. Länge</td><td>${lon.toFixed(8)}°</td></tr>` +
             `<tr><td>Ellipsoidische Höhe</td><td>${Hell.toFixed(3)} m</td></tr>` +
-            `<tr><td>Rm (mittlerer Erdradius)</td><td>${Rm.toFixed(0)} m</td></tr>` + // Corrected: Removed "(auswählen oder übernehmen)"
+            `<tr><td>Rm (mittlerer Erdradius)</td><td>${Rm.toFixed(0)} m</td></tr>` +
             `<tr><td>Höhenmaßstab</td><td>${m_h.toFixed(6)} (${((m_h - 1) * 100).toFixed(2)} cm/100m)</td></tr>` +
             `<tr><td>Projektionsmaßstab</td><td>${m_proj.toFixed(6)} (${((m_proj - 1) * 100).toFixed(2)} cm/100m)</td></tr>` +
             `<tr><td>Projektmaßstab</td><td>${m.toFixed(6)} (${((m - 1) * 100).toFixed(2)} cm/100m)</td></tr>` +
@@ -393,10 +396,10 @@
             ["Geogr. Breite", `${lastResults.lat.toFixed(8)}°`],
             ["Geogr. Länge", `${lastResults.lon.toFixed(8)}°`],
             ["Ellipsoidische Höhe", `${lastResults.Hell.toFixed(3)} m`],
-            ["Rm (mittlerer Erdradius)", `${lastResults.Rm.toFixed(0)} m`], // Corrected: Removed "(auswählen oder übernehmen)"
+            ["Rm (mittlerer Erdradius)", `${lastResults.Rm.toFixed(0)} m`],
             ["Höhenmaßstab", `${lastResults.m_h.toFixed(6)} (${((lastResults.m_h - 1) * 100).toFixed(2)} cm/100m)`],
             ["Projektionsmaßstab", `${lastResults.m_proj.toFixed(6)} (${((lastResults.m_proj - 1) * 100).toFixed(2)} cm/100m)`],
-            ["Projektmaßstab", `${lastResults.m.toFixed(6)} (${((lastResults.m - 1) * 100).toFixed(2)} cm/100m)`],
+            ["Projektmaßstab", `${lastResults.m.toFixed(6)} (${((m - 1) * 100).toFixed(2)} cm/100m)`],
             ["Streckenverzerrung", `${lastResults.ppm.toFixed(1)} ppm`],
             ["Streckenverzerrung auf 10m", `${lastResults.distortion10mCm.toFixed(2)} cm`],
             ["Streckenverzerrung auf 100m", `${lastResults.distortion100mCm.toFixed(2)} cm`],
@@ -432,32 +435,47 @@
         doc.text("Erstellt mit Unterstützung von Google Gemini 2.5 Flash", margin, pageHeight - 35);
 
         // BKG Lizenzinformationen
-        doc.text("Für die Berechnungen wurden das DGM 1000 und das Quasi-Geoid vom Bundesamt für Kartographie herangezogen.", margin, pageHeight - 20);
+        // Geoidmodell Lizenz
+        const geoidLicenseTextLine1 = "Quasi-Geoid:";
+        const geoidLicenseTextLine2 = "© BKG (2025) CC BY 4.0, Datenquellen:";
+        const geoidLicenseUrl = "https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/Datenquellen_Quasigeoid.pdf";
         
-        const bkgText = "© BKG";
-        const bkgUrl = "https://www.bkg.bund.de";
-        const ccbyText = "CC BY 4.0";
-        const ccbyUrl = "https://creativecommons.org/licenses/by/4.0/";
-
+        doc.text(geoidLicenseTextLine1, margin, pageHeight - 25);
         let currentX = margin;
-        let currentY = pageHeight - 15;
+        let currentY = pageHeight - 20;
+        
+        // BKG text and link for Geoid
+        doc.text("© BKG (2025)", currentX, currentY);
+        currentX += doc.getTextWidth("© BKG (2025)");
+        doc.text(" ", currentX, currentY); // Space
+        currentX += doc.getTextWidth(" ");
+        doc.textWithLink("CC BY 4.0", currentX, currentY, { url: "https://creativecommons.org/licenses/by/4.0/" });
+        currentX += doc.getTextWidth("CC BY 4.0");
+        doc.text(", Datenquellen:", currentX, currentY);
+        currentX += doc.getTextWidth(", Datenquellen:");
+        doc.text(" ", currentX, currentY); // Space
+        currentX += doc.getTextWidth(" ");
+        doc.textWithLink(geoidLicenseUrl, currentX, currentY, { url: geoidLicenseUrl });
 
-        // BKG Text and Link
-        doc.text(bkgText, currentX, currentY);
-        currentX += doc.getTextWidth(bkgText); 
-        doc.text(" ", currentX, currentY); // Space
-        currentX += doc.getTextWidth(" ");
-        doc.textWithLink(bkgUrl, currentX, currentY, { url: bkgUrl });
-        currentX += doc.getTextWidth(bkgUrl);
+        // DGM 1000 Lizenz
+        const dgmLicenseTextLine1 = "DGM 1000 (Daten verändert):";
+        const dgmLicenseTextLine2 = "© BKG (2025) dl-de/by-2-0";
+        const dgmLicenseUrl = "https://www.govdata.de/dl-de/by-2-0";
 
-        // CC BY 4.0 Text and Link
+        currentX = margin; // Reset X for new line
+        currentY = pageHeight - 10; // New Y for DGM line
+
+        doc.text(dgmLicenseTextLine1, currentX, currentY);
+        currentX += doc.getTextWidth(dgmLicenseTextLine1);
         doc.text(" ", currentX, currentY); // Space
         currentX += doc.getTextWidth(" ");
-        doc.text(ccbyText, currentX, currentY);
-        currentX += doc.getTextWidth(ccbyText);
+        
+        // BKG text and link for DGM
+        doc.text("© BKG (2025)", currentX, currentY);
+        currentX += doc.getTextWidth("© BKG (2025)");
         doc.text(" ", currentX, currentY); // Space
         currentX += doc.getTextWidth(" ");
-        doc.textWithLink(ccbyUrl, currentX, currentY, { url: ccbyUrl });
+        doc.textWithLink("dl-de/by-2-0", currentX, currentY, { url: dgmLicenseUrl });
         
         doc.save("Projektmassstab_Protokoll.pdf");
         alert("PDF-Protokoll erstellt.");
