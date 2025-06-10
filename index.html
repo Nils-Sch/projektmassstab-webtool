@@ -66,8 +66,8 @@
                             <select id="zone" class="form-input"><option>32</option><option>33</option></select>
                         </div>
                         <div>
-                            <label for="x" class="block font-medium text-gray-700">Rechtswert (6-stellig):</label>
-                            <input type="text" id="x" maxlength="6" class="form-input">
+                            <label for="x" class="block font-medium text-gray-700">Rechtswert (6- oder 7-stellig):</label>
+                            <input type="text" id="x" class="form-input">
                         </div>
                         <div>
                             <label for="y" class="block font-medium text-gray-700">Hochwert (7-stellig):</label>
@@ -211,8 +211,8 @@
         const x_str = document.getElementById('x').value;
         const y_str = document.getElementById('y').value;
         
-        if (!/^\d{6}$/.test(x_str) || !/^\d{7}$/.test(y_str)) {
-            setStatus('Rechtswert (6) und Hochwert (7) Ziffern erforderlich.', 'coordError');
+        if (!/^\d{6,7}$/.test(x_str) || !/^\d{7}$/.test(y_str)) {
+            setStatus('Rechtswert (6-7) und Hochwert (7) Ziffern erforderlich.', 'coordError');
             valid = false;
         } else {
             setStatus('', 'coordError');
@@ -220,29 +220,20 @@
 
         let hoehe = +document.getElementById('hoehe').value;
         if (isNaN(hoehe)) {
-            setStatus('Höhe muss eine Zahl sein.', 'hoeheError');
-            valid = false;
-        } else {
-            setStatus('', 'hoeheError');
-        }
+            setStatus('Höhe muss eine Zahl sein.', 'hoeheError'); valid = false;
+        } else { setStatus('', 'hoeheError'); }
 
         let undulation = +document.getElementById('undulation').value;
         if (isNaN(undulation)) {
-            setStatus('Undulation muss eine Zahl sein.', 'undulationError');
-            valid = false;
-        } else {
-            setStatus('', 'undulationError');
-        }
+            setStatus('Undulation muss eine Zahl sein.', 'undulationError'); valid = false;
+        } else { setStatus('', 'undulationError'); }
         
         const extent = +document.getElementById('extent').value;
         if (isNaN(extent)) {
-            setStatus('Projektausdehnung muss eine Zahl sein.', 'extentWarn');
-            valid = false;
+            setStatus('Projektausdehnung muss eine Zahl sein.', 'extentWarn'); valid = false;
         } else if (extent > 5000) {
             setStatus('Projekt > 5000m! Dies kann zu höheren Verzerrungen führen.', 'extentWarn');
-        } else {
-            setStatus('', 'extentWarn');
-        }
+        } else { setStatus('', 'extentWarn'); }
 
         if (!valid) return;
 
@@ -250,9 +241,20 @@
         const y = +y_str;
         const zone = +document.getElementById('zone').value;
 
-        // Auto-Höhe
+        // Koordinaten für die DGM-Abfrage vorbereiten (ggf. transformieren)
+        let dgmQueryX = x;
+        let dgmQueryY = y;
+
+        if (zone === 33) {
+            proj4.defs('EPSG:25833', '+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+            proj4.defs('EPSG:25832', '+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+            [dgmQueryX, dgmQueryY] = proj4('EPSG:25833', 'EPSG:25832', [x, y]);
+            console.log(`Zone 33: Koordinate (${x}, ${y}) transformiert zu (${dgmQueryX}, ${dgmQueryY}) für DGM-Abfrage.`);
+        }
+        
+        // Auto-Höhe mit potenziell transformierten Koordinaten
         if (document.getElementById('autoHoehe').checked && dgmLoaded) {
-            const nearestPoint = getInterpolatedValue(x, y, dgmGrid);
+            const nearestPoint = getInterpolatedValue(dgmQueryX, dgmQueryY, dgmGrid);
             if (nearestPoint) {
                 hoehe = nearestPoint.h;
                 document.getElementById('hoehe').value = hoehe.toFixed(2);
@@ -261,7 +263,7 @@
             }
         }
         
-        // Auto-Undulation
+        // Auto-Undulation (nutzt immer die Originalkoordinaten und transformiert zu WGS84)
         proj4.defs(`EPSG:258${zone}`, `+proj=utm +zone=${zone} +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs`);
         const [lon, lat] = proj4(`EPSG:258${zone}`, 'WGS84', [x, y]);
 
@@ -275,9 +277,8 @@
             }
         }
 
-        // Berechnungen
-        const a = 6378137.0; // GRS80 große Halbachse
-        const f = 1 / 298.257222101; // GRS80 Abplattung
+        const a = 6378137.0; 
+        const f = 1 / 298.257222101;
         const e2 = 2 * f - f * f;
         const latRad = lat * Math.PI / 180;
         
@@ -401,7 +402,7 @@
             alert("Bitte zuerst auf 'Berechnen' klicken.");
             return;
         }
-        const formatForCSV = num => num.toString().replace('.', ',');
+        
         const headers = ["PROJEKTMASSSTAB", "MASSSTABSANPASSUNG", "RECHTSWERT", "HOCHWERT"];
         const data = [
             lastResults.m.toFixed(8).replace('.',','),
